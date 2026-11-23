@@ -10,16 +10,65 @@ class Credentials(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
-class CreateRun(BaseModel):
+class PlanBatchInput(BaseModel):
+    batch_no: str = Field(min_length=1, max_length=96)
+    stage1_count: int = Field(ge=2, le=200)
+    stage2_count: int = Field(ge=2, le=200)
+
+    @field_validator('batch_no')
+    @classmethod
+    def meaningful_batch(cls, value):
+        if not value.strip():
+            raise ValueError('请填写工票批号')
+        return value.strip()
+
+
+class CreatePlan(BaseModel):
     title: str = Field(max_length=120)
     parameters: dict = Field(default_factory=dict)
+    batches: list[PlanBatchInput] = Field(default_factory=list, max_length=100)
+    run_first: bool = True
 
     @field_validator('title')
     @classmethod
     def meaningful_title(cls, value):
         if not value.strip():
-            raise ValueError('请填写分析名称')
+            raise ValueError('请填写方案名称')
         return value.strip()
+
+    @field_validator('batches')
+    @classmethod
+    def two_stage_plan(cls, value):
+        if not value:
+            raise ValueError('请至少登记一张工票')
+        for item in value:
+            if item.stage1_count < 2 or item.stage2_count < 2:
+                raise ValueError(f'{item.batch_no} 两次抽检都至少 2 片才能做精确检验')
+        return value
+
+
+class SupplementCreate(BaseModel):
+    plan_id: int = Field(gt=0)
+    batch_no: str = Field(min_length=1, max_length=96)
+
+
+class SupplementAppend(BaseModel):
+    records: list[dict] = Field(default_factory=list, max_length=200)
+    observation_ids: list[int] = Field(default_factory=list, max_length=200)
+
+    @field_validator('observation_ids')
+    @classmethod
+    def distinct_ids(cls, value):
+        if len(set(value)) != len(value):
+            raise ValueError('补抽试片编号重复')
+        return value
+
+    @field_validator('records')
+    @classmethod
+    def one_mode(cls, value, info):
+        if value and info.data.get('observation_ids'):
+            raise ValueError('请选择台账已有试片，或录入新试片，不要同时提交')
+        return value
 
 
 class ReviewInput(BaseModel):

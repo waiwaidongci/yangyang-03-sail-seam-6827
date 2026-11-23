@@ -12,7 +12,8 @@ from src.config.runtime import SEED_DEMO
 from src.middlewares.headers import response_headers
 from src.middlewares.trace import trace_request
 from src.models.base import Base, Session, engine
-from src.routes import analysis, records, reports, session
+from src.models.migrate import upgrade as upgrade_schema
+from src.routes import analysis, records, reports, session, supplements
 from src.services.broker import redis
 from src.services.errors import BusinessError
 
@@ -22,6 +23,7 @@ logger = logging.getLogger('uvicorn.error')
 @asynccontextmanager
 async def lifespan(_app):
     Base.metadata.create_all(engine)
+    upgrade_schema()
     if SEED_DEMO:
         try:
             logger.info('demo row counts %s', seed_data())
@@ -33,7 +35,7 @@ async def lifespan(_app):
 app = FastAPI(title=SPEC['title'], lifespan=lifespan)
 app.middleware('http')(trace_request)
 app.middleware('http')(response_headers)
-for module in (session, records, analysis, reports):
+for module in (session, records, analysis, supplements, reports):
     app.include_router(module.router)
 
 

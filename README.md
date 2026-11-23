@@ -4,7 +4,17 @@
 
 ## 模拟场景
 
-[业务剧本](yangyang-business.md)记录模拟团队、上游观测、统计口径和交接去向。四个工作模块包括数据台账、分析任务、结果与复核、报表分发。数据从合成种子或 UTF-8 CSV 进入。分析员提交后，Python worker 对固化观测清单计算。负责人签核，随后可以下载结果或把报告定时投递到本地收件箱。
+[业务剧本](yangyang-business.md)记录模拟团队、上游观测、统计口径和交接去向。四个工作模块包括数据台账、分析任务、结果与复核、报表分发。数据从合成种子或 UTF-8 CSV 进入。分析员先建立抽样方案，再发起首检；Python worker 对固化观测清单计算。负责人签核，随后可以下载结果或把报告定时投递到本地收件箱。
+
+## 补抽与两次检验
+
+首检前在「分析任务」建立抽样方案：定好本次审查的批次、单片达标线、批次最低达标率和整组置信水平，并为每张工票登记首检与补抽两次的片数。方案一旦建立即固化，首检就是一次预先登记的审查。
+
+- 每批误放预算 `α_b = (1−整组置信水平)/m`，按两轮片数拆成 `α₁`、`α₂`，且 `α₁+α₂=α_b`。两次检验合起来仍受原上限约束。
+- 首检 `p ≤ α₁` 交主管复核；达标率低于最低达标率则暂缓排查工艺；其余判为待定。
+- 只有首检判为待定的工票，台账才开放一次补抽录入。补抽限定本工票、本针距、首检快照之后新登记的试片，片数按方案上限，重复试片号或重复提交不会重复计片；并发发起补检只受理一份。
+- 试片凑齐后，后台自动合并两轮试片按 `n=n₁+n₂` 与 `α₂` 重算。重算失败可重试，重试复用同一份分析，不重复计片。
+- 结果页的「抽检证据追溯」按工票列出两次各用了哪些试片、阈值与 p 值，以及判定依据；CSV 导出也包含试片号和依据。
 
 ## 启动
 
@@ -20,11 +30,11 @@ docker compose exec -T backend python -m scripts.seed_demo
 
 | 角色 | 邮箱 | 演示密码 | 可执行动作 |
 |---|---|---|---|
-| 业务分析员 | `analyst@demo.local` | `Analyst-2026!` | 登记或导入样本、提交分析、下载内部结果 |
+| 业务分析员 | `analyst@demo.local` | `Analyst-2026!` | 建立抽样方案、登记或导入样本、发起首检、录入补抽、下载内部结果 |
 | 复核负责人 | `supervisor@demo.local` | `Supervisor-2026!` | 导入资料、签核或退回、安排或停止分发、查审计 |
 | 只读查看 | `viewer@demo.local` | `Viewer-2026!` | 查看台账、已签核结果和本地收件箱 |
 
-`.env` 以 `.env.example` 为模板。`FRONTEND_PORT`、`BACKEND_PORT`、`DB_PORT` 可做本机端口调整。Docker 私有子网可通过 `NETWORK_SUBNET` 覆盖。`JWT_SECRET` 和 `DB_PASSWORD` 为本地演示配置。`SEED_DEMO=false` 可跳过自动种子。所有公开端口绑定在回环地址。首次执行种子后，后续种子只填缺失观测，不覆盖已录入数据。
+`.env` 以 `.env.example` 为模板。`FRONTEND_PORT`、`BACKEND_PORT`、`DB_PORT` 可做本机端口调整。Docker 私有子网可通过 `NETWORK_SUBNET` 覆盖。`JWT_SECRET` 和 `DB_PASSWORD` 为本地演示配置。`SEED_DEMO=false` 可跳过自动种子。所有公开端口绑定在回环地址。首次执行种子后，后续种子只填缺失观测与演示方案，不覆盖已录入数据。演示种子预置「2026-08-14 质检班 3.5 mm」方案并已发起首检：A 批证据达标，B、C 两批待定可补抽。
 
 ## 模块和本地开发
 
@@ -33,10 +43,10 @@ docker compose exec -T backend python -m scripts.seed_demo
 | frontend | HTML、CSS、ES Modules、Nginx | 工作台、录入与报告 |
 | backend | Python 3.12、FastAPI、SQLAlchemy | 校验、快照、业务 API 和 JWT |
 | worker | Python 3.12、Redis | 计算排队、心跳和到时导出 |
-| db | PostgreSQL 16 | 观测、快照、签核、分发计划和审计 |
+| db | PostgreSQL 16 | 观测、抽样方案、补抽、快照、签核、分发计划和审计 |
 | redis | Redis 7 | 唤醒、心跳和登录限流 |
 
-在 `backend` 中可用 `pip install -r requirements.txt` 安装本地依赖，设置 `DATABASE_URL`、`REDIS_URL` 和可写 `ARTIFACT_ROOT` 后运行 `uvicorn src.main:app --port 8000`，计算进程运行 `python -m src.worker`。前端修改在 `frontend/src`，用 `docker compose up -d --build frontend` 通过 Nginx 检查同源代理。业务输入定义在 `backend/src/domain/spec.json`，算法在同目录的 `analysis.py`。角色、任务状态和签核状态在后端 `backend/src/constants/enums.py` 和前端 `frontend/src/constants/enums.js` 共同定义。数据库表在 `backend/src/models/workflow.py`。
+在 `backend` 中可用 `pip install -r requirements.txt` 安装本地依赖，设置 `DATABASE_URL`、`REDIS_URL` 和可写 `ARTIFACT_ROOT` 后运行 `uvicorn src.main:app --port 8000`，计算进程运行 `python -m src.worker`。前端修改在 `frontend/src`，用 `docker compose up -d --build frontend` 通过 Nginx 检查同源代理。业务输入定义在 `backend/src/domain/spec.json`，算法在同目录的 `analysis.py`，方案与补抽流程在 `backend/src/services/plans.py`、`runs.py`。角色、任务状态和签核状态在后端 `backend/src/constants/enums.py` 和前端 `frontend/src/constants/enums.js` 共同定义。数据库表在 `backend/src/models/workflow.py`。
 
 分发计划锁定特定已签核快照，按北京时间显示。收件箱可下载真实 CSV，当前收件组是本地交接标签。停机跨过多个周期时补送最早未投递的一期，然后追到下一个将来的周期。新快照需重新签核并建新计划。
 

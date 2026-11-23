@@ -13,6 +13,19 @@ class RunStatus(StrEnum):
     FAILED = 'failed'
 
 
+class RunKind(StrEnum):
+    FIRST = 'first'
+    SUPPLEMENT = 'supplement'
+
+
+class SupplementStatus(StrEnum):
+    OPEN = 'open'
+    READY = 'ready'
+    QUEUED = 'queued'
+    COMPLETED = 'completed'
+    FAILED = 'failed'
+
+
 class Decision(StrEnum):
     APPROVED = 'approved'
     RETURNED = 'returned'

@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.constants.enums import RunStatus
+from src.constants.enums import RunKind, RunStatus, SupplementStatus
 from src.models.base import Base, utc_now
 
 
@@ -12,6 +12,52 @@ class Observation(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     source_key: Mapped[str] = mapped_column(String(96), unique=True)
     payload: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+class SamplingPlan(Base):
+    """A pre-registered two-stage review: batches, acceptance line and both sample sizes."""
+    __tablename__ = 'sampling_plans'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(120))
+    owner: Mapped[str] = mapped_column(String(60))
+    parameters: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+class PlanBatch(Base):
+    __tablename__ = 'plan_batches'
+    __table_args__ = (UniqueConstraint('plan_id', 'batch_no'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey('sampling_plans.id'), index=True)
+    batch_no: Mapped[str] = mapped_column(String(96))
+    stage1_count: Mapped[int] = mapped_column(Integer)
+    stage2_count: Mapped[int] = mapped_column(Integer)
+
+
+class Supplement(Base):
+    """One supplementary specimen round for a single pending ticket."""
+    __tablename__ = 'supplements'
+    __table_args__ = (UniqueConstraint('plan_id', 'batch_no'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey('sampling_plans.id'), index=True)
+    first_run_id: Mapped[int] = mapped_column(ForeignKey('analysis_runs.id'), index=True)
+    batch_no: Mapped[str] = mapped_column(String(96))
+    stitch_pitch: Mapped[str] = mapped_column(String(8))
+    stage1_count: Mapped[int] = mapped_column(Integer)
+    stage2_count: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), default=SupplementStatus.OPEN, index=True)
+    requested_by: Mapped[str] = mapped_column(String(60))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class SupplementSpecimen(Base):
+    __tablename__ = 'supplement_specimens'
+    __table_args__ = (UniqueConstraint('supplement_id', 'observation_id'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supplement_id: Mapped[int] = mapped_column(ForeignKey('supplements.id'), index=True)
+    observation_id: Mapped[int] = mapped_column(ForeignKey('observations.id'), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
@@ -24,6 +70,9 @@ class AnalysisRun(Base):
     last_observation_id: Mapped[int] = mapped_column(Integer)
     sample_size: Mapped[int] = mapped_column(Integer)
     observation_ids: Mapped[list] = mapped_column(JSON)
+    kind: Mapped[str] = mapped_column(String(16), default=RunKind.FIRST, index=True)
+    plan_id: Mapped[int | None] = mapped_column(ForeignKey('sampling_plans.id'), nullable=True, index=True)
+    supplement_id: Mapped[int | None] = mapped_column(ForeignKey('supplements.id'), nullable=True, unique=True)
     status: Mapped[str] = mapped_column(String(16), default=RunStatus.QUEUED, index=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
