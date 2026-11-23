@@ -1,0 +1,22 @@
+{
+  "organization": "苇泊帆补",
+  "tagline": "按针距查阅工票，核对放行前的拉脱达标证据",
+  "source": "苇泊帆补质检班的拉力机独立试片台账与拼缝工票（模拟）",
+  "record_name": "拼缝拉脱试片",
+  "algorithm": "单比例单侧精确二项检验与 Clopper–Pearson 下界",
+  "formula": "单片峰值 ≥ 达标线为合格。每批 n 片中 k 片合格，原假设 p ≤ p₀，精确 p 值为 Bin(n, p₀) 在 k 及以上的概率之和。选定针距有 m 批时，单批 α = (1 − 整组置信水平) / m，单侧下界 L 满足 Pr[Bin(n, L) ≥ k] = α，k = 0 时 L = 0。p 值 ≤ α 的批次交主管复核。",
+  "decision_prompt": "在既定拉脱达标线与最低达标率下，哪些工票有足够证据交主管复核，哪些需要暂缓？",
+  "fields": [
+    {"key": "batch_no", "label": "工票批号", "type": "text", "example": "BP-260812-C", "help": "使用裁片工票上的批号。同批同针距的试片合并计算。"},
+    {"key": "specimen_id", "label": "试片编号", "type": "text", "example": "BP-260812-C-07", "help": "台账内唯一。每片取自独立抽样的拼缝，只录入一次有效试验。"},
+    {"key": "stitch_pitch", "label": "针距（mm）", "type": "choice", "choices": ["3.0", "3.5", "4.0"], "example": "3.5"},
+    {"key": "pull_force_n", "label": "拉脱峰值（N）", "type": "number", "min": 0, "max": 5000, "example": 432},
+    {"key": "tested_on", "label": "试验日期", "type": "date", "example": "2026-08-12"}
+  ],
+  "parameters": [
+    {"key": "stitch_pitch", "label": "归档针距（mm）", "type": "choice", "choices": ["3.0", "3.5", "4.0"], "default": "3.5"},
+    {"key": "force_limit_n", "label": "单片拉脱达标线（N）", "type": "number", "min": 1, "max": 5000, "default": 400, "help": "含边界，峰值等于达标线计合格。"},
+    {"key": "target_pct", "label": "批次最低达标率（%）", "type": "number", "min": 1, "max": 99.9, "default": 85},
+    {"key": "confidence_pct", "label": "整组置信水平（%）", "type": "number", "min": 80, "max": 99.9, "default": 95, "help": "显著性预算按本次实际审查的批数平分。"}
+  ]
+}
